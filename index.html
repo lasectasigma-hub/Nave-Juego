@@ -20,11 +20,27 @@ input { padding:5px; margin:5px; font-size:16px; border-radius:5px; border:none;
 #panelCuenta { display:none; position:absolute; top:50px; right:10px; background:#222; padding:15px; border-radius:10px; text-align:left; width:220px; color:white; }
 #panelCuenta .miniNave { width:20px; height:20px; display:inline-block; margin-right:5px; vertical-align:middle; border:1px solid white; }
 .rgb-button { background: linear-gradient(to right, red, orange, yellow, green, blue, indigo, violet); }
+#update-message {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #222;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+    z-index: 10;
+    text-align: center;
+    width: 80%;
+    max-width: 400px;
+}
+#update-message h3 { margin-top: 0; }
 </style>
 </head>
 <body>
 
 <div id="menu">
+  <div>Update 30</div>
   <h1>Nave</h1>
   <div id="monedas">Monedas: 0</div>
   <button style="background:blue; color:white;" onclick="iniciarJuego('facil')">Fácil</button>
@@ -36,6 +52,14 @@ input { padding:5px; margin:5px; font-size:16px; border-radius:5px; border:none;
   <button id="botonSkins" style="background:gray; color:white;" onclick="toggleSkins()">Skins</button>
   <div id="contenedorSkins"></div>
   <button id="crearCuentaBtn" style="background:#555; color:white;" onclick="abrirModalCuenta()">Crear cuenta</button>
+</div>
+
+<div id="update-message" style="display:none;">
+    <h3>¡Juego Actualizado!</h3>
+    <p>
+        ¡Hemos añadido nuevas dificultades y la skin RGB!
+    </p>
+    <button onclick="cerrarMensajeActualizacion()">Cerrar</button>
 </div>
 
 <button id="tuCuentaBtn" onclick="togglePanelCuenta()" style="display:none;">Tu cuenta</button>
@@ -65,6 +89,22 @@ let victoriasImposible = 0;
 let dificultadActual;
 let tiempoMeta;
 let tamañoCubo = 18;
+
+// --- Funcionalidad de Actualización ---
+const VERSION_ACTUAL = "30";
+
+function mostrarMensajeActualizacion() {
+    const ultimaVersionVista = localStorage.getItem('versionJuego');
+    if (ultimaVersionVista !== VERSION_ACTUAL) {
+        document.getElementById('update-message').style.display = 'block';
+    }
+}
+
+function cerrarMensajeActualizacion() {
+    document.getElementById('update-message').style.display = 'none';
+    localStorage.setItem('versionJuego', VERSION_ACTUAL);
+}
+// -------------------------------------
 
 // ----- Código de la música (Tone.js) -----
 let melodyPart, bassPart;
@@ -434,10 +474,11 @@ function mostrarTablaClasificacion(){
 }
 function cerrarTabla(){ document.getElementById('tablaClasificacion').style.display='none'; }
 
-// Inicia la música del menú cuando la página carga
+// Inicia la música del menú cuando la página carga y muestra el mensaje de actualización
 window.addEventListener('load', () => {
     iniciarMusicaMenu();
+    mostrarMensajeActualizacion();
 });
 </script>
 </body>
-  </html>
+</html>
