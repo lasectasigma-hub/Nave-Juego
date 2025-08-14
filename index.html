@@ -40,7 +40,7 @@ input { padding:5px; margin:5px; font-size:16px; border-radius:5px; border:none;
 <body>
 
 <div id="menu">
-  <div>Update 30</div>
+  <div>Un juego de Diggers Studios</div>
   <h1>Nave</h1>
   <div id="monedas">Monedas: 0</div>
   <button style="background:blue; color:white;" onclick="iniciarJuego('facil')">Fácil</button>
@@ -106,6 +106,382 @@ function cerrarMensajeActualizacion() {
 }
 // -------------------------------------
 
+// ----- Código de la música (Tone.js) -----
+let melodyPart, bassPart;
+
+async function iniciarMusicaMenu() {
+    await Tone.start();
+
+    const lead = new Tone.Synth({
+        oscillator: { type: "square" },
+        envelope: { attack: 0.01, decay: 0.2, sustain: 0.3, release: 0.4 }
+    }).toDestination();
+
+    const bass = new Tone.MonoSynth({
+        oscillator: { type: "triangle" },
+        filter: { Q: 1, type: "lowpass", rolloff: -24 },
+        envelope: { attack: 0.01, decay: 0.2, sustain: 0.5, release: 1 },
+        filterEnvelope: { attack: 0.001, decay: 0.1, sustain: 0.5, release: 0.8, baseFrequency: 200, octaves: 2.6 }
+    }).toDestination();
+
+    const melody = [
+        "C4","E4","G4","B4","C5","B4","G4","E4",
+        "A4","F4","C4","F4","A4","C5","A4","F4",
+        "G4","E4","B3","E4","G4","B4","G4","E4",
+        "F4","D4","A3","D4","F4","A4","F4","D4"
+    ];
+
+    const bassline = [
+        "C2","C2","A1","A1",
+        "F2","F2","G1","G1"
+    ];
+
+    melodyPart = new Tone.Sequence((time, note) => {
+        lead.triggerAttackRelease(note, "8n", time);
+    }, melody, "8n");
+
+    bassPart = new Tone.Sequence((time, note) => {
+        bass.triggerAttackRelease(note, "4n", time);
+    }, bassline, "4n");
+
+    Tone.Transport.bpm.value = 120;
+    melodyPart.start(0);
+    bassPart.start(0);
+    Tone.Transport.start();
+}
+// ------------------------------------------
+
+// Skins disponibles (colores + imágenes)
+let skinsDisponibles = [
+  { tipo: 'color', valor: 'white', desbloqueada: true },
+  { tipo: 'color', valor: 'red', desbloqueada: true },
+  { tipo: 'color', valor: 'blue', desbloqueada: true },
+  { tipo: 'color', valor: 'green', desbloqueada: true },
+  { tipo: 'color', valor: 'yellow', desbloqueada: true },
+  { tipo: 'color', valor: 'orange', desbloqueada: true },
+  { tipo: 'color', valor: 'purple', desbloqueada: true },
+  { tipo: 'color', valor: 'cyan', desbloqueada: true },
+  { tipo: 'color', valor: 'pink', desbloqueada: true },
+  { tipo: 'color', valor: 'brown', desbloqueada: true },
+  { tipo: 'color', valor: 'gold', desbloqueada: true },
+  { tipo: 'color', valor: 'silver', desbloqueada: true },
+  { tipo: 'imagen', valor: 'images (45).jpeg', desbloqueada: false, costo: 20 },
+  { tipo: 'imagen', valor: 'IMG-20250623-WA0008.jpg', desbloqueada: false, costo: 20 },
+  { tipo: 'rgb', valor: 'rgb', desbloqueada: false, costo: 100 }
+];
+
+// Cargar skins desbloqueadas de localStorage
+let skinsGuardadas = JSON.parse(localStorage.getItem('skinsDesbloqueadas') || "[]");
+skinsDisponibles.forEach(skin => {
+  if (skinsGuardadas.includes(skin.valor)) {
+    skin.desbloqueada = true;
+  }
+});
+
+let colorNave = skinsDisponibles[0]; // Skin inicial
+let rgbColor = {r: 255, g: 0, b: 0}; // Estado inicial del color RGB
+let colorStep = 5; // Velocidad de cambio de color
+let colorIndex = 0; // Para controlar la transición entre colores
+
+let monedas = parseInt(localStorage.getItem('monedas')||0);
+let usuarioActivo = localStorage.getItem('usuario') || null;
+let clasificacion = JSON.parse(localStorage.getItem('clasificacion')||"{}");
+
+document.getElementById('monedas').innerText = `Monedas: ${monedas}`;
+
+if(usuarioActivo){
+  document.getElementById('tuCuentaBtn').style.display='inline-block';
+  actualizarPanelCuenta();
+}
+
+// Estrellas del juego
+let estrellasJuego = [];
+function crearEstrellas(cantidad){
+    estrellasJuego = [];
+    for(let i=0;i<cantidad;i++){
+        estrellasJuego.push({ x: Math.random()*window.innerWidth, y: Math.random()*window.innerHeight, size: Math.random()*2+1, vx: Math.random()*0.2+0.1 });
+    }
+}
+crearEstrellas(100);
+
+// Estrellas menú
+function estrellaParpadeante(){
+  const menu = document.getElementById('menu');
+  const estrella = document.createElement('div');
+  estrella.classList.add('estrellaMenu');
+  estrella.style.left = Math.random() * (window.innerWidth-2) + 'px';
+  estrella.style.top = Math.random() * (window.innerHeight-2) + 'px';
+  menu.appendChild(estrella);
+
+  let opacity = 0;
+  let incremento = 0.05;
+  const intervalo = setInterval(()=>{
+    opacity += incremento;
+    estrella.style.opacity = opacity;
+    if(opacity >= 1) incremento = -0.05;
+    if(opacity <= 0){ clearInterval(intervalo); estrella.remove(); }
+  },30);
+}
+setInterval(()=>{
+  const cantidad = Math.floor(Math.random()*3)+1;
+  for(let i=0;i<cantidad;i++) estrellaParpadeante();
+},500);
+
+// Juego
+function iniciarJuego(dificultad){
+  document.getElementById('menu').style.display = 'none';
+  canvas.style.display = 'block';
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  Tone.Transport.stop(); // Detiene la música del menú
+
+  if(dificultad === 'facil'){ velocidadObstaculo = 3; velocidadNave = 5; tiempoMeta = 20; }
+  else if(dificultad === 'normal'){ velocidadObstaculo = 4.5; velocidadNave = 4; tiempoMeta = 35; }
+  else if(dificultad === 'dificil'){ velocidadObstaculo = 6; velocidadNave = 3; tiempoMeta = 40; }
+  else if(dificultad === 'imposible'){ velocidadObstaculo = 15; velocidadNave = 3; tiempoMeta = 10; }
+  else if(dificultad === 'curtido'){ velocidadObstaculo = 17; velocidadNave = 3; tiempoMeta = 60; }
+  else if(dificultad === 'secreto'){ velocidadObstaculo = 20; velocidadNave = 10; tiempoMeta = 60; }
+
+  nave = { x: canvas.width/2 - tamañoCubo/2, y: canvas.height/2 - tamañoCubo/2, w: tamañoCubo, h: tamañoCubo };
+  obstaculos = [];
+  for(let i=0; i<12; i++){ obstaculos.push(crearObstaculo()); }
+  tiempoInicio = Date.now();
+  juegoActivo = true;
+  dificultadActual = dificultad;
+  document.getElementById('temporizador').style.display = 'block';
+  requestAnimationFrame(actualizar);
+}
+
+function crearObstaculo(){
+  let desdeIzquierda = Math.random() < 0.5;
+  return { x: desdeIzquierda ? 0 : canvas.width - tamañoCubo, y: Math.random() * (canvas.height - tamañoCubo), w: tamañoCubo, h: tamañoCubo, vx: desdeIzquierda ? velocidadObstaculo : -velocidadObstaculo, vy: (Math.random()*2 - 1) * velocidadObstaculo };
+}
+
+function actualizar(){
+  if(!juegoActivo) return;
+  ctx.fillStyle = "black";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  estrellasJuego.forEach(e=>{ e.x -= e.vx; if(e.x<0) e.x=canvas.width; ctx.fillStyle="white"; ctx.fillRect(e.x,e.y,e.size,e.size); });
+
+  nave.y += direccionNave * velocidadNave;
+  if(nave.y<0) nave.y=0;
+  if(nave.y+nave.h>canvas.height) nave.y=canvas.height-nave.h;
+  
+  if (colorNave.tipo === 'rgb') { actualizarRGB(); }
+  dibujarNave();
+
+  obstaculos.forEach(obs => {
+    obs.x += obs.vx;
+    obs.y += obs.vy;
+    if(obs.y <= 0 || obs.y + obs.h >= canvas.height) obs.vy*=-1;
+    if(obs.x <=0 || obs.x+obs.w>=canvas.width) obs.vx*=-1;
+    ctx.fillStyle = (dificultadActual==='secreto')?'red':'orange';
+    ctx.fillRect(obs.x,obs.y,obs.w,obs.h);
+  });
+
+  obstaculos.forEach(obs=>{ if(colision(nave,obs)) terminarJuego(false); });
+
+  let tiempoPasado=(Date.now()-tiempoInicio)/1000;
+  document.getElementById('temporizador').innerText = `${tiempoPasado.toFixed(1)} / ${tiempoMeta}s`;
+
+  if(tiempoPasado>=tiempoMeta) terminarJuego(true);
+
+  requestAnimationFrame(actualizar);
+}
+
+function actualizarRGB() {
+  if (colorIndex === 0) { // R -> G
+    if (rgbColor.g < 255) rgbColor.g += colorStep;
+    else colorIndex = 1;
+  } else if (colorIndex === 1) { // G -> B
+    if (rgbColor.r > 0) rgbColor.r -= colorStep;
+    else colorIndex = 2;
+  } else if (colorIndex === 2) { // B -> G
+    if (rgbColor.b < 255) rgbColor.b += colorStep;
+    else colorIndex = 3;
+  } else if (colorIndex === 3) { // G -> R
+    if (rgbColor.g > 0) rgbColor.g -= colorStep;
+    else colorIndex = 4;
+  } else if (colorIndex === 4) { // R -> B
+    if (rgbColor.r < 255) rgbColor.r += colorStep;
+    else colorIndex = 5;
+  } else if (colorIndex === 5) { // B -> R
+    if (rgbColor.b > 0) rgbColor.b -= colorStep;
+    else colorIndex = 0;
+  }
+}
+
+function dibujarNave(){
+  if(colorNave.tipo==='color'){
+    ctx.fillStyle = colorNave.valor;
+    ctx.fillRect(nave.x, nave.y, nave.w, nave.h);
+  } else if (colorNave.tipo==='rgb') {
+    ctx.fillStyle = `rgb(${rgbColor.r}, ${rgbColor.g}, ${rgbColor.b})`;
+    ctx.fillRect(nave.x, nave.y, nave.w, nave.h);
+  } else {
+    const img = new Image();
+    img.src = colorNave.valor;
+    ctx.drawImage(img, nave.x, nave.y, nave.w, nave.h);
+  }
+}
+
+function colision(a,b){ return a.x<b.x+b.w && a.x+a.w>b.x && a.y<b.y+b.h && a.y+a.h>b.y; }
+
+function terminarJuego(ganaste){
+  juegoActivo=false;
+  canvas.style.display='none';
+  document.getElementById('menu').style.display='flex';
+  document.getElementById('temporizador').style.display='none';
+
+  iniciarMusicaMenu(); // Reinicia la música al volver al menú
+
+  if(ganaste){
+    alert("¡Ganaste!");
+    let monedasGanadas=0;
+    if(dificultadActual==='facil') monedasGanadas=5;
+    if(dificultadActual==='normal') monedasGanadas=20;
+    if(dificultadActual==='dificil') monedasGanadas=15;
+    if(dificultadActual==='imposible') monedasGanadas=40;
+    if(dificultadActual==='curtido') monedasGanadas=80;
+    monedas += monedasGanadas;
+    localStorage.setItem('monedas',monedas);
+    document.getElementById('monedas').innerText=`Monedas: ${monedas}`;
+
+    if(usuarioActivo){
+      if(!clasificacion[usuarioActivo]) clasificacion[usuarioActivo]={facil:0,dificil:0,imposible:0,secreto:0,normal:0,curtido:0};
+      clasificacion[usuarioActivo][dificultadActual] = (clasificacion[usuarioActivo][dificultadActual]||0)+1;
+      localStorage.setItem('clasificacion',JSON.stringify(clasificacion));
+      actualizarPanelCuenta();
+    }
+  } else {
+    alert("Perdiste");
+    mostrarTablaClasificacion();
+  }
+}
+
+// Controles
+document.addEventListener('mousedown', ()=>{ direccionNave=-1; });
+document.addEventListener('mouseup', ()=>{ direccionNave=1; });
+document.addEventListener('touchstart', ()=>{ direccionNave=-1; });
+document.addEventListener('touchend', ()=>{ direccionNave=1; });
+
+// Skins
+function toggleSkins(){
+  const cont = document.getElementById('contenedorSkins');
+  cont.style.display = cont.style.display==='none'?'flex':'none';
+}
+function actualizarSkins(){
+  const cont = document.getElementById('contenedorSkins');
+  cont.innerHTML='';
+  skinsDisponibles.forEach((skin) => {
+    const btn=document.createElement('button');
+    btn.style.width='40px';
+    btn.style.height='40px';
+    btn.style.margin='5px';
+    btn.style.borderRadius='10px';
+    btn.style.border='2px solid white';
+    if(skin.tipo==='color'){
+      btn.style.background = skin.valor;
+    } else if (skin.tipo==='rgb') {
+      btn.classList.add('rgb-button');
+    } else {
+      btn.style.backgroundImage = `url(${skin.valor})`;
+      btn.style.backgroundSize = 'cover';
+    }
+    btn.onclick=()=>{
+      if(skin.desbloqueada){
+        colorNave=skin;
+        actualizarPanelCuenta();
+      } else {
+        const costo = skin.costo || 20;
+        if(monedas>=costo){
+          monedas -= costo;
+          localStorage.setItem('monedas',monedas);
+          document.getElementById('monedas').innerText=`Monedas: ${monedas}`;
+          skin.desbloqueada=true;
+          guardarSkins();
+          alert("Skin desbloqueada");
+          actualizarSkins();
+        } else {
+          alert(`No tienes suficientes monedas. Necesitas ${costo} monedas.`);
+        }
+      }
+    };
+    if(!skin.desbloqueada){
+      const costo = skin.costo || 20;
+      btn.innerText=`${costo}💰`;
+      btn.style.fontSize="10px";
+      btn.style.color="white";
+    }
+    cont.appendChild(btn);
+  });
+}
+function guardarSkins(){
+  let desbloqueadas = skinsDisponibles.filter(s => s.desbloqueada).map(s => s.valor);
+  localStorage.setItem('skinsDesbloqueadas', JSON.stringify(desbloqueadas));
+}
+actualizarSkins();
+
+// Crear cuenta
+function abrirModalCuenta(){ document.getElementById('modalCuenta').style.display='block'; }
+function crearCuenta(){
+  const input=document.getElementById('inputUsuario');
+  if(input.value.trim()===''){ alert("Ingresa un usuario"); return; }
+  usuarioActivo=input.value.trim();
+  localStorage.setItem('usuario',usuarioActivo);
+  document.getElementById('modalCuenta').style.display='none';
+  alert(`Cuenta creada: ${usuarioActivo}`);
+  document.getElementById('tuCuentaBtn').style.display='inline-block';
+  if(!clasificacion[usuarioActivo]) clasificacion[usuarioActivo]={facil:0,dificil:0,imposible:0,secreto:0,normal:0,curtido:0};
+  localStorage.setItem('clasificacion',JSON.stringify(clasificacion));
+  actualizarPanelCuenta();
+}
+
+// Panel Tu Cuenta
+function togglePanelCuenta(){
+  const panel=document.getElementById('panelCuenta');
+  panel.style.display = panel.style.display==='none'?'block':'none';
+}
+function actualizarPanelCuenta(){
+  if(!usuarioActivo) return;
+  const panel=document.getElementById('panelCuenta');
+  let skinPreview = colorNave.tipo==='color' ? `background:${colorNave.valor}` : `background-image:url(${colorNave.valor});background-size:cover;`;
+  if (colorNave.tipo === 'rgb') {
+    skinPreview = 'background: linear-gradient(to right, red, orange, yellow, green, blue, indigo, violet);';
+  }
+  panel.innerHTML=`<div><span class="miniNave" style="${skinPreview}"></span> ${usuarioActivo}</div>`;
+  const stats = clasificacion[usuarioActivo]||{facil:0,dificil:0,imposible:0,secreto:0,normal:0,curtido:0};
+  panel.innerHTML += `<div>Fácil: ${stats.facil||0}</div><div>Normal: ${stats.normal||0}</div><div>Difícil: ${stats.dificil||0}</div><div>Imposible: ${stats.imposible||0}</div><div>Curtido: ${stats.curtido||0}</div><div>Secreto: ${stats.secreto||0}</div>`;
+}
+
+// Tabla clasificación
+function mostrarTablaClasificacion(){
+  const tablaDiv = document.getElementById('tablaClasificacion');
+  tablaDiv.innerHTML = '<h2>Clasificación</h2><table border="1" style="margin:auto; color:white;"><tr><th>Usuario</th><th>Fácil</th><th>Normal</th><th>Difícil</th><th>Imposible</th><th>Curtido</th><th>Secreto</th><th>Total</th></tr>';
+  const usuariosArray = [];
+  for(let usuario in clasificacion){
+    const stats = clasificacion[usuario];
+    const total = (stats.facil||0) + (stats.normal||0) + (stats.dificil||0) + (stats.imposible||0) + (stats.curtido||0) + (stats.secreto||0);
+    usuariosArray.push({usuario, stats, total});
+  }
+  usuariosArray.sort((a,b) => b.total - a.total);
+  usuariosArray.forEach(u => {
+    tablaDiv.innerHTML += `<tr><td>${u.usuario}</td><td>${u.stats.facil||0}</td><td>${u.stats.normal||0}</td><td>${u.stats.dificil||0}</td><td>${u.stats.imposible||0}</td><td>${u.stats.curtido||0}</td><td>${u.stats.secreto||0}</td><td>${u.total}</td></tr>`;
+  });
+  tablaDiv.innerHTML += '</table><button onclick="cerrarTabla()">Cerrar</button>';
+  tablaDiv.style.display = 'block';
+}
+function cerrarTabla(){ document.getElementById('tablaClasificacion').style.display='none'; }
+
+// Inicia la música del menú cuando la página carga y muestra el mensaje de actualización
+window.addEventListener('load', () => {
+    iniciarMusicaMenu();
+    mostrarMensajeActualizacion();
+});
+</script>
+</body>
+</html>
 // ----- Código de la música (Tone.js) -----
 let melodyPart, bassPart;
 
